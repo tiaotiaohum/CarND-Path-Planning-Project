@@ -36,7 +36,7 @@ Here is the data provided from the Simulator to the C++ Program
 
 ["d"] The car's d position in frenet coordinates
 
-["yaw"] The car's yaw angle in the map
+["yaw"] The car's yaw angle(degree) in the map
 
 ["speed"] The car's speed in MPH
 

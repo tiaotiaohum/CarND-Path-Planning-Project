@@ -64,6 +64,9 @@ int main() {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
+                
+    int safety_buffer = 30; // m, used to measure distance for safety reason
+                
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
       auto s = hasData(data);
@@ -112,54 +115,49 @@ int main() {
           }
           
           bool too_close = false;
-          bool left_clear = false;
-          bool right_clear = false;
+          bool left_clear = true;
+          bool right_clear = true;
           
-          
-          //monitor left lane
+          //find ref_vel to use
           for (int i=0; i<sensor_fusion.size(); i++){
-            float d_left = sensor_fusion[i][6];
+//             bool too_close = false;
+//             bool left_clear = true;
+//             bool right_clear = true;
+            //car is in my lane
+            float d = sensor_fusion[i][6];
             
             // check left side, if there is closed vehicle
-            if (lane!=0&&d_left<(4*lane)&&d_left>(4*lane-4)){
+            if (lane!=0&&d<(4*lane)&&d>(4*lane-4)){
               double vx_left = sensor_fusion[i][3];
               double vy_left = sensor_fusion[i][4];
               double check_speed_left = sqrt(vx_left*vx_left + vy_left*vy_left);
               double check_car_s_left = sensor_fusion[i][5];
               check_car_s_left += ((double)prev_size*0.02*check_speed_left);
               
-              if (((check_car_s_left < car_s)&&((-check_car_s_left+car_s)<30))||((check_car_s_left > car_s)&&((check_car_s_left-car_s)<30))){
+//               bool danger_for_change_left = (check_car_s_left<abs(car_s-safety_buffer/2)) && (check_car_s_left<abs(car_s+safety_buffer/2));
+              bool danger_for_change_left = ((check_car_s_left < car_s && abs(check_car_s_left - car_s) < 30) || (check_car_s_left > car_s && abs(check_car_s_left - car_s) < 15));
+//               if (((check_car_s_left < car_s)&&((-check_car_s_left+car_s)<safety_buffer))||((check_car_s_left > car_s)&&((check_car_s_left-car_s)<safety_buffer))){
+              if (danger_for_change_left){
                 left_clear = false;
-              }else{
-                left_clear = true;
               }
             }
-          }
-          
-          // monitor right lane
-          for (int i=0; i<sensor_fusion.size(); i++){
-            float d_right = sensor_fusion[i][6];
-              
+            
             // check right side, if there is closed vehicle
-            if (lane!=2&&d_right<(2+4*lane+6)&&d_right>(4+4*lane)){
+            if (lane!=2&&d<(2+4*lane+6)&&d>(4+4*lane)){
               double vx_right = sensor_fusion[i][3];
               double vy_right = sensor_fusion[i][4];
               double check_speed_right = sqrt(vx_right*vx_right + vy_right*vy_right);
               double check_car_s_right = sensor_fusion[i][5];
               check_car_s_right += ((double)prev_size*0.02*check_speed_right);
               
-              if (((check_car_s_right < car_s)&&((-check_car_s_right+car_s)<30))||((check_car_s_right > car_s)&&((check_car_s_right-car_s)<30))){
+//               bool danger_for_change_right = (check_car_s_right<abs(car_s-safety_buffer/2)) && (check_car_s_right<abs(car_s+safety_buffer/2));
+              bool danger_for_change_right = ((check_car_s_right < car_s && abs(check_car_s_right - car_s) < 30) || (check_car_s_right > car_s && abs(check_car_s_right - car_s) < 15));
+              
+//               if (((check_car_s_right < car_s)&&((-check_car_s_right+car_s)<safety_buffer))||((check_car_s_right > car_s)&&((check_car_s_right-car_s)<safety_buffer))){
+              if (danger_for_change_right){
                 right_clear = false;
-              }else{
-                right_clear = true;
               }
             }
-          }
-          
-          //find ref_vel to use
-          for (int i=0; i<sensor_fusion.size(); i++){
-            //car is in my lane
-            float d = sensor_fusion[i][6];
             
             // check if there is a closed car ahead
             if (d<(2+4*lane+2)&&d>(2+4*lane-2)){
@@ -169,32 +167,28 @@ int main() {
               double check_car_s = sensor_fusion[i][5];
               check_car_s += ((double)prev_size*0.02*check_speed);
               
-              if ((check_car_s > car_s)&&((check_car_s-car_s)<30)){
+              if ((check_car_s > car_s)&&((check_car_s-car_s)<20)){
                 too_close = true;
-//                 ref_vel = sensor_fusion[i][3];
-                if (left_clear){
-                  lane-=1; // prepare to take the left lane
-                  if (lane == 0){
-                    left_clear=false;
-                  }
-                }
-                if (right_clear){
-                  lane+=1; // prepare to take the left lane
-                  if (lane==2){
-                   right_clear=false; 
-                  }
-                }
               } 
+              
             }
+            
           }
           
           if (too_close){
-            ref_vel -=.224;
+            ref_vel -=.284;
+            if (left_clear&&lane!=0){
+                  lane-=1; // change to the left lane
+                }
+                else if (right_clear&&lane!=2){
+                  lane+=1; // change to the right lane
+                }
           }
-          else if (ref_vel<49.9){
+          else if (ref_vel<49.5){
             ref_vel +=.224;
           } // M: not understood completely
           
+          std::cout << "lane: " << lane << "\ttoo close ahead: " << too_close << "\tfree on left: " << left_clear << "\tfree on right: " << right_clear << std::endl;
           
          // Creat a list of widely spread (x,y) waypoints, evenly spaced at 30m
           
